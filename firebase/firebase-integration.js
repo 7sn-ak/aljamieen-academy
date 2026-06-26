@@ -296,7 +296,7 @@ function override() {
     const t = val('fTitle'); if (!t) return window.toast('اكتب عنوان الدرس');
     const type = window.state.addType;
     const data = { title: t, course: val('fCourse'), date: val('fDate'), type, desc: val('fDesc'), updatedAt: serverTimestamp() };
-    if (type === 'video') { data.youtube = ytId(val('fYoutube')); data.minutes = 20; }
+    if (type === 'video') { data.youtube = ytId(val('fYoutube')); data.minutes = parseInt(val('fMinutes'), 10) || 0; }
     else { data.book = val('fBook') || 'كتاب'; data.pages = val('fPages') || '—'; }
     if (window.state.editId) await updateDoc(doc(db, 'lessons', window.state.editId), data);
     else { const ref = await addDoc(L(), { ...data, createdAt: serverTimestamp() });
