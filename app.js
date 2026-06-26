@@ -89,7 +89,7 @@ function lessonStatus(l){
 /* ---------- إطار الشاشة ---------- */
 function appbar(title, sub, opts={}){
   const back = opts.back ? `<button class="ab-btn ab-back" onclick="history.back()">‹</button>` : '';
-  const brand = opts.brand ? `<span class="ab-logo">${logoSvg(28)}</span>` : '';
+  const brand = '';
   const bell = opts.bell ? `<button class="ab-btn" onclick="go('#/notifications')">🔔${unreadCount()?`<span class="ab-badge">${unreadCount()}</span>`:''}</button>` : '';
   return `<div class="appbar">${back}${brand}
     <div style="flex:1">${sub?`<span class="ab-sub">${esc(sub)}</span>`:''}<span class="ab-title">${esc(title)}</span></div>${bell}</div>`;
@@ -102,9 +102,8 @@ function adminTabs(a){ const t=(r,i,l)=>`<button class="tab ${a===r?'active':''}
 /* ================= شاشات الطالب ================= */
 function viewLogin(){
   return `<div class="auth">
-    <img src="./logo.png" class="brand-logo" alt="أكاديمية الجامعيين" onerror="logoFallback(this)" data-s="120">
-    <h1 style="margin-top:2px">أكاديمية الجامعيين</h1>
-    <p class="auth-sub" style="margin-top:6px">منصّة المتابعة العلمية الخاصة</p>
+    <h1 style="margin-top:10px;font-size:2.4rem">أكاديمية الجامعيين</h1>
+    <p class="auth-sub" style="margin-top:8px">منصّة المتابعة العلمية الخاصة</p>
     <div class="auth-card">
       <button class="btn btn-primary btn-block" id="googleBtn">
         <span style="display:inline-flex;align-items:center;gap:10px;justify-content:center">
@@ -351,8 +350,7 @@ function viewMe(){
 /* ---------- الشهادات (الطالب) ---------- */
 function certBody(c, name){
   return `<div class="cert-inner">
-    <div class="cert-logo"><img src="./logo.png" alt="شعار أكاديمية الجامعيين" style="width:170px;max-width:62%;margin:0 auto;display:block"></div>
-    <div class="cert-acad">أكاديمية الجامعيين</div>
+    <div class="cert-acad" style="margin-top:6px">أكاديمية الجامعيين</div>
     <div class="cert-title">${esc(c.cert.title||('شهادة إتمام مادة '+c.name))}</div>
     <div class="cert-orn">۞ ❁ ۞</div>
     <p class="cert-pre">تشهد أكاديمية الجامعيين بأن الطالب</p>

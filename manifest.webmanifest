@@ -7,7 +7,7 @@
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#5b3a1e",
+  "theme_color": "#2a2e33",
   "icons": [
     { "src": "./icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "./icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
