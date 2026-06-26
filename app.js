@@ -37,12 +37,18 @@ function dtLocalValue(v){ const d=v?lessonDT(v):new Date(); const p=n=>String(n)
   return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes()); }
 function courseActive(name){ const c=DB.courses.find(x=>x.name===name); return c?c.active:false; }
 function isPublished(l){ return courseActive(l.course) && !isFuture(l.date); }
+function isLocked(l){ return courseActive(l.course) && isFuture(l.date); }   // مجدول لم يُنشر بعد
+// الدروس المنشورة فقط (المتاحة فعلاً للفتح)
 function studentLessons(){ return DB.lessons.filter(isPublished).slice().sort((a,b)=>b.date.localeCompare(a.date)); }
+// كل دروس الطالب في المواد المفعّلة — تشمل المجدولة المقفلة (تظهر بقفل)
+function studentAllLessons(){ return DB.lessons.filter(l=>courseActive(l.course)).slice().sort((a,b)=>b.date.localeCompare(a.date)); }
+function lockedMsg(){ toast('هذا الدرس مجدول — سيُفتح تلقائياً عند موعد نشره'); }
 function activeCourses(){ return DB.courses.filter(c=>c.active); }
 function courseById(id){ return DB.courses.find(c=>c.id===id); }
 function subjectProgress(name){
-  const ls=DB.lessons.filter(l=>l.course===name && !isFuture(l.date) && courseActive(name));
-  const done=ls.filter(l=>l.done).length;
+  // الإجمالي يشمل الدروس المجدولة حتى لا تُمنح الشهادة قبل إكمالها جميعاً
+  const ls=DB.lessons.filter(l=>l.course===name && courseActive(name));
+  const done=ls.filter(l=>l.done && !isFuture(l.date)).length;
   return { done, total:ls.length, pct: ls.length?Math.round(done/ls.length*100):0 };
 }
 function certEarned(c){ if(!c||!c.cert||!c.cert.enabled||!c.active) return false; const p=subjectProgress(c.name); return p.total>0 && p.done===p.total; }
@@ -134,7 +140,7 @@ function viewBlocked(){
 }
 
 function viewHome(){
-  const me=DB.me, pub=studentLessons(), done=pub.filter(l=>l.done).length;
+  const me=DB.me, pub=studentAllLessons(), done=pub.filter(l=>l.done && !isFuture(l.date)).length;
   const pct = pub.length?Math.round(done/pub.length*100):0;
   const top3 = activeStudents().slice().sort((a,b)=>b.points-a.points).slice(0,3);
   const medals=['🥇','🥈','🥉'];
@@ -171,14 +177,19 @@ function viewHome(){
 function lessonRow(l){
   const ico=l.type==='video'?'▶':'📖', cls=l.type==='video'?'thumb-video':'thumb-book';
   const solved = DB.me.quiz[l.id];
-  return `<div class="lesson" onclick="go('#/lesson/${l.id}')">
-    <div class="lesson-thumb ${cls}">${ico}</div>
+  const locked = isFuture(l.date);
+  const dur = l.type==='video' ? (l.minutes ? l.minutes+' دقيقة' : 'مقطع') : 'قراءة';
+  const click = locked ? `onclick="lockedMsg()"` : `onclick="go('#/lesson/${l.id}')"`;
+  return `<div class="lesson${locked?' locked':''}" ${click}>
+    <div class="lesson-thumb ${cls}">${locked?'🔒':ico}</div>
     <div class="lesson-body"><h3>${esc(l.title)}</h3>
       <div class="lesson-meta">
         <span class="badge">${esc(l.course)}</span>
-        <span class="badge ${l.type==='video'?'badge-red':'badge-gold'}">${l.type==='video'?l.minutes+' دقيقة':'قراءة'}</span>
-        ${solved?`<span class="badge badge-green">حُلّت ${solved.correct}/${solved.total}</span>`:''}
-        <span class="lesson-date">${fmtDate(l.date)}</span>
+        ${locked
+          ? `<span class="badge badge-gold">🔒 مجدول ${fmtDate(l.date)}${fmtTime(l.date)}</span>`
+          : `<span class="badge ${l.type==='video'?'badge-red':'badge-gold'}">${dur}</span>`}
+        ${(!locked&&solved)?`<span class="badge badge-green">حُلّت ${solved.correct}/${solved.total}</span>`:''}
+        ${locked?'':`<span class="lesson-date">${fmtDate(l.date)}</span>`}
       </div></div>
     <div class="lesson-check ${l.done?'done':''}">✓</div></div>`;
 }
@@ -186,7 +197,7 @@ function lessonRow(l){
 function viewLessons(){
   const courses=['الكل', ...activeCourses().map(c=>c.name)];
   const active=courses.includes(state.lessonFilter)?state.lessonFilter:'الكل';
-  let list=studentLessons(); if(active!=='الكل') list=list.filter(l=>l.course===active);
+  let list=studentAllLessons(); if(active!=='الكل') list=list.filter(l=>l.course===active);
   let html='', last='';
   list.forEach(l=>{ const d=fmtDate(l.date); if(d!==last){ html+=`<div class="date-sep">${d}</div>`; last=d; } html+=`<div class="card mb">${lessonRow(l)}</div>`; });
   return appbar('الدروس','مرتّبة حسب التاريخ',{bell:true})
@@ -199,6 +210,11 @@ function setFilter(c){ state.lessonFilter=c; render(); }
 
 function viewLesson(id){
   const l=DB.lessons.find(x=>x.id===id); if(!l) return viewHome();
+  if(isFuture(l.date)){
+    return appbar('درس مجدول', esc(l.course), {back:true})
+    + `<div class="screen"><div class="empty"><div class="ei">🔒</div>
+        هذا الدرس مجدول وسيُفتح تلقائياً عند موعد نشره<br><b>${fmtDate(l.date)}${fmtTime(l.date)}</b></div></div>`;
+  }
   const media = l.type==='video'
     ? `<div class="video-wrap mb"><iframe src="https://www.youtube.com/embed/${l.youtube}" allowfullscreen></iframe></div>`
     : `<div class="book-read mb"><div class="book-ico">📖</div><h3 style="color:var(--brown-800)">${esc(l.book)}</h3><p class="muted">الصفحات ${esc(l.pages)}</p><button class="btn btn-brown mt">فتح الكتاب للقراءة</button></div>`;
@@ -554,7 +570,10 @@ function viewLessonForm(editId){
         <div class="field"><label>عنوان الدرس</label><input id="fTitle" placeholder="مثال: شرح باب الإيمان" value="${val(ed&&ed.title)}"></div>
         <div class="field"><label>المادة (التصنيف)</label>
           <select id="fCourse">${DB.courses.map(c=>`<option value="${esc(c.name)}" ${ed&&ed.course===c.name?'selected':''}>${esc(c.name)}${c.active?'':' (مخفية)'}</option>`).join('')}</select></div>
-        <div id="fldVideo" style="display:${isV?'':'none'}"><div class="field"><label>رابط يوتيوب أو المعرّف</label><input id="fYoutube" placeholder="https://youtu.be/..." value="${val(ed&&ed.youtube)}"></div></div>
+        <div id="fldVideo" style="display:${isV?'':'none'}">
+          <div class="field"><label>رابط يوتيوب أو المعرّف</label><input id="fYoutube" placeholder="https://youtu.be/..." value="${val(ed&&ed.youtube)}" oninput="detectDuration()" onchange="detectDuration()"></div>
+          <div class="field"><label>مدة المقطع (دقائق) <span id="durHint" style="color:var(--muted);font-weight:400;font-size:.8rem"></span></label><input id="fMinutes" type="number" min="1" inputmode="numeric" placeholder="تُكتشف تلقائياً من الرابط" value="${ed&&ed.minutes?ed.minutes:''}"></div>
+        </div>
         <div id="fldBook" style="display:${isV?'none':''}">
           <div class="field"><label>اسم الكتاب</label><input id="fBook" placeholder="مثال: الأصول الثلاثة" value="${val(ed&&ed.book)}"></div>
           <div class="field"><label>الصفحات</label><input id="fPages" placeholder="مثال: 1-8" value="${val(ed&&ed.pages)}"></div>
@@ -575,12 +594,36 @@ function segType(t){ state.addType=t;
   document.getElementById('fldBook').style.display=t==='book'?'':'none';
 }
 function ytId(u){ if(!u) return 'dQw4w9WgXcQ'; const m=u.match(/(?:v=|be\/|embed\/)([\w-]{11})/); return m?m[1]:u.slice(0,11); }
+/* ---------- كشف مدة المقطع تلقائياً عبر YouTube IFrame API ---------- */
+function loadYT(cb){
+  if(window.YT && window.YT.Player) return cb();
+  if(!window._ytcbs){ window._ytcbs=[]; window.onYouTubeIframeAPIReady=function(){ window._ytReady=true; (window._ytcbs||[]).forEach(f=>f()); window._ytcbs=[]; };
+    const s=document.createElement('script'); s.src='https://www.youtube.com/iframe_api'; document.head.appendChild(s); }
+  window._ytcbs.push(cb);
+}
+let _durTimer=null;
+function detectDuration(){
+  const urlEl=document.getElementById('fYoutube'), out=document.getElementById('fMinutes'), hint=document.getElementById('durHint');
+  if(!urlEl||!out) return;
+  const id=ytId(urlEl.value); if(!id || id.length<11){ return; }
+  clearTimeout(_durTimer);
+  _durTimer=setTimeout(()=>{
+    if(hint) hint.textContent='— جارٍ الكشف...';
+    loadYT(()=>{
+      const host=document.createElement('div'); host.style.cssText='position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0'; document.body.appendChild(host);
+      let done=false;
+      const finish=(mins)=>{ if(done) return; done=true; if(mins>0){ out.value=mins; if(hint) hint.textContent='(اكتُشفت تلقائياً ✓)'; } else if(hint){ hint.textContent='— تعذّر الكشف، اكتبها يدوياً'; } try{p.destroy()}catch(e){} host.remove(); };
+      const p=new YT.Player(host,{videoId:id,playerVars:{autoplay:0},events:{onReady:()=>{ let t=0; const iv=setInterval(()=>{ let d=0; try{d=p.getDuration()}catch(e){} if(d>0){ clearInterval(iv); finish(Math.max(1,Math.round(d/60))); } else if(++t>10){ clearInterval(iv); finish(0); } },300); }, onError:()=>finish(0)}});
+      setTimeout(()=>finish(0),6000);
+    });
+  },700);
+}
 function saveLesson(){
   const t=document.getElementById('fTitle').value.trim(); if(!t){ toast('اكتب عنوان الدرس'); return; }
   const course=document.getElementById('fCourse').value, date=document.getElementById('fDate').value;
   const type=state.addType, desc=document.getElementById('fDesc').value;
   const media = type==='video'
-    ? { youtube: ytId(document.getElementById('fYoutube').value), minutes: 20 }
+    ? { youtube: ytId(document.getElementById('fYoutube').value), minutes: (parseInt(document.getElementById('fMinutes').value,10)||0) }
     : { book: document.getElementById('fBook').value||'كتاب', pages: document.getElementById('fPages').value||'—' };
   if(state.editId){
     const l=DB.lessons.find(x=>x.id===state.editId);

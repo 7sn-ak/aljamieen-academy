@@ -81,6 +81,9 @@ input,select,textarea{font-family:var(--font)}
 /* ===== درس (timeline) ===== */
 .lesson{display:flex;gap:13px;padding:14px;align-items:flex-start}
 .lesson + .lesson{border-top:1px solid var(--line)}
+.lesson.locked{opacity:.6}
+.lesson.locked .lesson-thumb{filter:grayscale(.5)}
+.lesson.locked .lesson-body h3{color:var(--muted)}
 .lesson-thumb{flex-shrink:0;width:60px;height:60px;border-radius:13px;display:grid;place-items:center;font-size:1.5rem;color:#fff}
 .thumb-video{background:linear-gradient(135deg,#454b52,#23262a)}
 .thumb-book{background:linear-gradient(135deg,var(--brown-600),var(--brown-800))}
