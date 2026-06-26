@@ -1,0 +1,56 @@
+rules_version = '2';
+
+// ============================================================
+// قواعد أمان قاعدة البيانات (Firestore) لأكاديمية الجامعيين
+// المبدأ: الطالب يرى بياناته فقط + المحتوى المتاح؛ المشرف يدير كل شيء.
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function myDoc()    { return get(/databases/$(database)/documents/students/$(request.auth.uid)).data; }
+    function isAdmin()  { return signedIn() && myDoc().role == 'admin'; }
+    function isActive() { return signedIn() && myDoc().status == 'active'; }
+
+    // ---- الطلاب / الحسابات ----
+    match /students/{uid} {
+      allow read:   if isAdmin() || request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid
+                    && ( (request.resource.data.role == 'student' && request.resource.data.status == 'pending')
+                         || request.auth.token.email == '7snz10@gmail.com' );
+      allow update: if isAdmin()
+                    || (request.auth.uid == uid
+                        && request.resource.data.role   == resource.data.role
+                        && request.resource.data.status == resource.data.status
+                        && request.resource.data.points == resource.data.points);
+      allow delete: if isAdmin();
+    }
+
+    // ---- المواد / الدروس / التمارين / الشهادات ----
+    match /subjects/{id}     { allow read: if isActive(); allow write: if isAdmin(); }
+    match /lessons/{id}      { allow read: if isActive(); allow write: if isAdmin(); }
+    match /exercises/{id}    { allow read: if isActive(); allow write: if isAdmin(); }
+    match /certificates/{id} { allow read: if isActive(); allow write: if isAdmin(); }
+
+    // ---- نتائج تمارين الطالب (تُحلّ مرة واحدة) ----
+    match /quizResults/{id} {
+      allow read:          if isAdmin() || resource.data.uid == request.auth.uid;
+      allow create:        if isActive() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ---- الإشعارات ----
+    match /notifications/{id} {
+      allow read:  if isAdmin()
+                   || (isActive() && (resource.data.audience == 'all'
+                                      || resource.data.target == request.auth.uid));
+      allow write: if isAdmin();
+    }
+
+    // ---- رموز أجهزة الإشعارات (FCM tokens) ----
+    match /deviceTokens/{uid} {
+      allow read, write: if request.auth.uid == uid || isAdmin();
+    }
+  }
+}
