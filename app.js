@@ -2,7 +2,7 @@
 'use strict';
 const App = document.getElementById('app');
 const Toast = document.getElementById('toast');
-let state = { role:'student', lessonFilter:'الكل', answers:{}, addType:'video', notifAud:'all', editId:null, leaderMetric:'points' };
+let state = { role:'student', lessonFilter:'الكل', answers:{}, addType:'video', notifAud:'all', editId:null, leaderMetric:'points', presetCourse:null };
 window.state = state;   // إتاحته لوحدة Firebase (إضافة الدروس/الإشعارات/تسليم التمارين)
 const PTS_PER_CORRECT = 10;
 
@@ -480,12 +480,14 @@ function viewAdminSubjects(){
         const count=DB.lessons.filter(l=>l.course===c.name).length;
         const hasCert=c.cert&&c.cert.enabled;
         return `<div class="card card-pad mb">
-          <div style="display:flex;gap:11px;align-items:center">
+          <div style="display:flex;gap:11px;align-items:center;cursor:pointer" onclick="go('#/admin/subject/${c.id}')">
             <div class="avatar" style="background:${c.active?'var(--green-600)':'var(--muted)'};font-size:1rem">${esc(c.name[0])}</div>
             <div style="flex:1;min-width:0"><h4 style="color:var(--brown-800)">${esc(c.name)}</h4>
               <p class="muted" style="font-size:.84rem">${count} درس${hasCert?' · 🎓 شهادة مفعّلة':''}</p></div>
+            <span style="color:var(--muted);font-size:1.3rem">›</span>
           </div>
           <div style="display:flex;gap:7px;margin-top:11px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="go('#/admin/subject/${c.id}')">📚 عرض الدروس (${count})</button>
             <button class="btn btn-sm ${c.active?'btn-green':'btn-outline'}" onclick="toggleSubject('${c.id}')">${c.active?'ظاهرة ✓':'إظهار'}</button>
             <button class="btn btn-outline btn-sm" onclick="go('#/admin/cert/${c.id}')">🎓 الشهادة</button>
           </div>
@@ -525,6 +527,33 @@ function saveCert(id){ const c=courseById(id);
 }
 function addSubject(){ const v=document.getElementById('newSubj').value.trim(); if(!v){ toast('اكتب اسم المادة'); return; }
   DB.courses.push({id:'c'+Date.now(),name:v,active:true}); toast('أُضيفت «'+v+'» وهي ظاهرة للطلاب'); render(); }
+
+/* ---------- دروس مادة محددة (يفتحها المشرف بالضغط على المادة) ---------- */
+function viewAdminSubjectLessons(id){
+  const c=courseById(id); if(!c) return viewAdminSubjects();
+  const list=DB.lessons.filter(l=>l.course===c.name).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  return appbar('دروس المادة', esc(c.name)+' · '+list.length+' درس', {back:true})
+  + `<div class="screen">
+      <button class="btn btn-primary btn-block mb" onclick="addLessonTo('${esc(c.name)}')">➕ إضافة درس في «${esc(c.name)}»</button>
+      ${list.length ? list.map(l=>{ const st=lessonStatus(l), ico=l.type==='video'?'▶':'📖', cls=l.type==='video'?'thumb-video':'thumb-book';
+        return `<div class="card card-pad mb">
+          <div style="display:flex;gap:11px;align-items:flex-start">
+            <div class="lesson-thumb ${cls}" style="width:46px;height:46px;font-size:1.2rem">${ico}</div>
+            <div style="flex:1;min-width:0">
+              <h3 style="color:var(--brown-800);font-size:1rem">${esc(l.title)}</h3>
+              <div class="lesson-meta"><span class="badge ${st.c}">${st.t}</span></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:7px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="go('#/admin/edit/${l.id}')">✏️ تعديل</button>
+            <button class="btn btn-outline btn-sm" onclick="go('#/admin/exercises/${l.id}')">📝 التمارين (${exCount(l.id)})</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteLesson('${l.id}')">🗑️ حذف</button>
+          </div>
+        </div>`;}).join('')
+        : `<div class="card card-pad mb"><p class="muted" style="text-align:center">لا توجد دروس في هذه المادة بعد.</p></div>`}
+    </div>` + adminTabs('admin/subjects');
+}
+function addLessonTo(name){ state.presetCourse=name; go('#/admin/add'); }
 
 /* ---------- إدارة الدروس ---------- */
 function viewAdminLessons(){
@@ -572,7 +601,7 @@ function viewLessonForm(editId){
       <div class="card card-pad">
         <div class="field"><label>عنوان الدرس</label><input id="fTitle" placeholder="مثال: شرح باب الإيمان" value="${val(ed&&ed.title)}"></div>
         <div class="field"><label>المادة (التصنيف)</label>
-          <select id="fCourse">${DB.courses.map(c=>`<option value="${esc(c.name)}" ${ed&&ed.course===c.name?'selected':''}>${esc(c.name)}${c.active?'':' (مخفية)'}</option>`).join('')}</select></div>
+          <select id="fCourse">${DB.courses.map(c=>{const sel=ed?ed.course===c.name:(state.presetCourse&&state.presetCourse===c.name);return `<option value="${esc(c.name)}" ${sel?'selected':''}>${esc(c.name)}${c.active?'':' (مخفية)'}</option>`;}).join('')}</select></div>
         <div id="fldVideo" style="display:${isV?'':'none'}">
           <div class="field"><label>رابط يوتيوب أو المعرّف</label><input id="fYoutube" placeholder="https://youtu.be/..." value="${val(ed&&ed.youtube)}" oninput="detectDuration()" onchange="detectDuration()"></div>
           <div class="field"><label>مدة المقطع (دقائق) <span id="durHint" style="color:var(--muted);font-weight:400;font-size:.8rem"></span></label><input id="fMinutes" type="number" min="1" inputmode="numeric" placeholder="تُكتشف تلقائياً من الرابط" value="${ed&&ed.minutes?ed.minutes:''}"></div>
@@ -844,7 +873,9 @@ function render(){
   else if(p[0]==='certificates') html=viewCertificates();
   else if(p[0]==='badges') html=viewBadges();
   else if(p[0]==='admin'){
+    if(!(p[1]==='add')) state.presetCourse=null;
     if(p[1]==='subjects') html=viewAdminSubjects();
+    else if(p[1]==='subject') html=viewAdminSubjectLessons(p[2]);
     else if(p[1]==='cert') html=viewAdminCert(p[2]);
     else if(p[1]==='lessons') html=viewAdminLessons();
     else if(p[1]==='add') html=viewLessonForm(null);
