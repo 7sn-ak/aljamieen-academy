@@ -1,5 +1,5 @@
 /* أكاديمية الجامعيين — Service Worker (تخزين مؤقت + عمل دون اتصال + سرعة) */
-const CACHE = 'aljamieen-v4';
+const CACHE = 'aljamieen-v5';
 const ASSETS = [
   './', './index.html', './app.css', './app.js', './mock-data.js',
   './logo.png', './icon.png', './icon-maskable.png', './apple-touch-icon.png', './manifest.webmanifest'

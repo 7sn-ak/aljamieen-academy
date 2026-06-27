@@ -181,7 +181,7 @@ function lessonRow(l){
   const ico=l.type==='video'?'▶':'📖', cls=l.type==='video'?'thumb-video':'thumb-book';
   const solved = DB.me.quiz[l.id];
   const locked = isFuture(l.date);
-  const dur = l.type==='video' ? (l.minutes ? l.minutes+' دقيقة' : 'مقطع') : 'قراءة';
+  const _m = lessonMinutes(l); const dur = l.type==='video' ? (_m ? _m+' دقيقة' : 'مقطع') : 'قراءة';
   const click = locked ? `onclick="lockedMsg()"` : `onclick="go('#/lesson/${l.id}')"`;
   return `<div class="lesson${locked?' locked':''}" ${click}>
     <div class="lesson-thumb ${cls}">${locked?'🔒':ico}</div>
@@ -620,6 +620,29 @@ function detectDuration(){
       setTimeout(()=>finish(0),6000);
     });
   },700);
+}
+/* ---------- المدة الحقيقية للطلاب: كشف تلقائي من يوتيوب + تخزين مؤقت ---------- */
+const _DUR_KEY='ytDur_v1';
+function durCache(){ try{ return JSON.parse(localStorage.getItem(_DUR_KEY)||'{}'); }catch(e){ return {}; } }
+function durSet(id,m){ try{ const c=durCache(); c[id]=m; localStorage.setItem(_DUR_KEY, JSON.stringify(c)); }catch(e){} }
+function lessonMinutes(l){
+  if(!l || l.type!=='video') return 0;
+  const v=durCache()[l.youtube||''];
+  if(typeof v==='number') return v>0 ? v : (l.minutes||0);
+  if(l.youtube) queueDur(l.youtube);
+  return l.minutes||0;
+}
+let _durQueue=[], _durBusy=false;
+function queueDur(id){ if(!id) return; if(durCache()[id]!==undefined) return; if(_durQueue.indexOf(id)>=0) return; _durQueue.push(id); pumpDur(); }
+function pumpDur(){
+  if(_durBusy) return; const id=_durQueue.shift(); if(!id) return; _durBusy=true;
+  loadYT(()=>{
+    const host=document.createElement('div'); host.style.cssText='position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0'; document.body.appendChild(host);
+    let done=false;
+    const fin=(m)=>{ if(done) return; done=true; try{p.destroy()}catch(e){} host.remove(); _durBusy=false; durSet(id, m>0?m:-1); if(m>0 && window.render) window.render(); setTimeout(pumpDur,80); };
+    const p=new YT.Player(host,{videoId:id,playerVars:{autoplay:0},events:{onReady:()=>{ let t=0; const iv=setInterval(()=>{ let d=0; try{d=p.getDuration()}catch(e){} if(d>0){ clearInterval(iv); fin(Math.max(1,Math.round(d/60))); } else if(++t>12){ clearInterval(iv); fin(0); } },300); }, onError:()=>fin(0)}});
+    setTimeout(()=>fin(0),7000);
+  });
 }
 function saveLesson(){
   const t=document.getElementById('fTitle').value.trim(); if(!t){ toast('اكتب عنوان الدرس'); return; }
