@@ -141,6 +141,7 @@ function viewBlocked(){
 
 function viewHome(){
   const me=DB.me, pub=studentAllLessons(), done=pub.filter(l=>l.done && !isFuture(l.date)).length;
+  const published=studentLessons(), scheduled=DB.lessons.filter(isLocked).sort((a,b)=>a.date.localeCompare(b.date));
   const pct = pub.length?Math.round(done/pub.length*100):0;
   const top3 = activeStudents().slice().sort((a,b)=>b.points-a.points).slice(0,3);
   const medals=['🥇','🥈','🥉'];
@@ -169,8 +170,10 @@ function viewHome(){
       <div class="row-main"><h4>${certCourses().filter(certEarned).length} شهادة محصّلة</h4><p class="muted" style="font-size:.84rem">من ${certCourses().length} مواد فيها شهادات</p></div><span>›</span>
     </div>`:''}
     <div class="section-title"><h2>أحدث الدروس</h2><a onclick="go('#/lessons')">الكل</a></div>
-    ${pub.length?`<div class="card">${pub.slice(0,4).map(lessonRow).join('')}</div>`
+    ${published.length?`<div class="card mb">${published.slice(0,4).map(lessonRow).join('')}</div>`
       :'<div class="empty"><div class="ei">📭</div>لا توجد دروس متاحة بعد</div>'}
+    ${scheduled.length?`<div class="section-title"><h2>الدروس المجدولة</h2><span class="badge">${scheduled.length}</span></div>
+    <div class="card">${scheduled.map(lessonRow).join('')}</div>`:''}
   </div>` + studentTabs('home');
 }
 
@@ -197,7 +200,7 @@ function lessonRow(l){
 function viewLessons(){
   const courses=['الكل', ...activeCourses().map(c=>c.name)];
   const active=courses.includes(state.lessonFilter)?state.lessonFilter:'الكل';
-  let list=studentAllLessons(); if(active!=='الكل') list=list.filter(l=>l.course===active);
+  let list=studentAllLessons().slice().sort((a,b)=>a.date.localeCompare(b.date)); if(active!=='الكل') list=list.filter(l=>l.course===active);
   let html='', last='';
   list.forEach(l=>{ const d=fmtDate(l.date); if(d!==last){ html+=`<div class="date-sep">${d}</div>`; last=d; } html+=`<div class="card mb">${lessonRow(l)}</div>`; });
   return appbar('الدروس','مرتّبة حسب التاريخ',{bell:true})
